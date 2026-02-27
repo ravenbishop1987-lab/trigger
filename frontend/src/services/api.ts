@@ -8,6 +8,10 @@ const api = axios.create({
   timeout: 30000,
 })
 
+/* ======================
+   REQUEST INTERCEPTOR
+====================== */
+
 api.interceptors.request.use((config) => {
   const token = useAuthStore.getState().token
   if (token) {
@@ -16,16 +20,17 @@ api.interceptors.request.use((config) => {
   return config
 })
 
+/* ======================
+   RESPONSE INTERCEPTOR
+====================== */
+
 api.interceptors.response.use(
   (res) => res,
   (err) => {
-    console.error('API Error:', err.response?.data || err.message)
-
     if (err.response?.status === 401) {
       useAuthStore.getState().logout()
       window.location.href = '/login'
     }
-
     return Promise.reject(err)
   }
 )
@@ -50,8 +55,14 @@ export const authApi = {
 ====================== */
 
 export const scoresApi = {
-  get: () =>
+  current: () =>
     api.get('/scores').then((r) => r.data),
+
+  heatmap: (days: number) =>
+    api.get(`/scores/heatmap`, { params: { days } }).then((r) => r.data),
+
+  history: (months: number) =>
+    api.get(`/scores/history`, { params: { months } }).then((r) => r.data),
 }
 
 /* ======================
@@ -59,8 +70,10 @@ export const scoresApi = {
 ====================== */
 
 export const triggersApi = {
-  getAll: () =>
-    api.get('/triggers').then((r) => r.data),
+  list: (params?: { limit?: number }) =>
+    api.get('/triggers', { params }).then((r) => ({
+      data: r.data,
+    })),
 
   create: (body: any) =>
     api.post('/triggers', body).then((r) => r.data),

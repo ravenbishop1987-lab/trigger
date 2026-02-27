@@ -108,11 +108,21 @@ export const summariesApi = {
 ====================== */
 
 export const subscriptionsApi = {
-  createCheckout: (priceId: string) =>
-    api.post('/subscriptions/checkout', { priceId }).then((r) => r.data),
+  // Called by SettingsPage: checkoutMut.mutate(plan.tier)
+  checkout: (tier: string) =>
+    api.post('/subscriptions/checkout', { tier }).then((r) => r.data),
 
+  // Called by SettingsPage: portalMut.mutate()
+  portal: () =>
+    api.post('/subscriptions/portal').then((r) => r.data),
+
+  // Get current subscription status
   getStatus: () =>
     api.get('/subscriptions/status').then((r) => r.data),
+
+  // Legacy method name (keep for compatibility)
+  createCheckout: (tier: string) =>
+    api.post('/subscriptions/checkout', { tier }).then((r) => r.data),
 }
 
 /* ======================

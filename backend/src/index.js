@@ -21,8 +21,7 @@ const PORT = process.env.PORT || 4000
 const allowedOrigins = [
   'https://trigger-frontend.onrender.com',
   'http://localhost:5173',
-  'http://127.0.0.1:5173',
-].filter(Boolean)
+]
 
 const corsOptions = {
   origin: (origin, cb) => {
@@ -35,19 +34,21 @@ const corsOptions = {
   allowedHeaders: ['Content-Type', 'Authorization'],
 }
 
-// Put CORS first so even errors return CORS headers
-app.use(cors(corsOptions))
-app.options('*', cors(corsOptions))
-
+// Security and logging
 app.use(helmet())
 app.use(morgan('combined'))
 
-// Stripe raw body route must come before json parser
+// CORS must be before any routes and before rate limits
+app.use(cors(corsOptions))
+app.options('*', cors(corsOptions))
+
+// Stripe raw body must be before express.json for that route only
 app.use('/api/webhooks/stripe', express.raw({ type: 'application/json' }))
 
+// JSON body parsing
 app.use(express.json({ limit: '1mb' }))
 
-// Rate limiting after CORS
+// Rate limiting
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 300,
@@ -68,6 +69,8 @@ app.use('/api', globalLimiter)
 app.use('/api/auth', authLimiter)
 
 // Routes
+app.get('/health', (_req, res) => res.json({ status: 'ok', ts: new Date().toISOString() }))
+
 app.use('/api/auth', authRoutes)
 app.use('/api/triggers', triggersRoutes)
 app.use('/api/scores', scoresRoutes)
@@ -78,19 +81,17 @@ app.use('/api/webhooks', webhooksRoutes)
 app.use('/api/admin', adminRoutes)
 app.use('/api/relationships', relationshipsRoutes)
 
-// Health
-app.get('/health', (_req, res) => res.json({ status: 'ok', ts: new Date().toISOString() }))
-
 // 404 handler for API
-app.use('/api', (_req, res) => res.status(404).json({ error: 'Not found' }))
+app.use('/api', (_req, res) => res.status(404).json({ error: 'API route not found' }))
 
-// Global error handler, keep CORS headers intact
+// Global error handler, keeps CORS working because cors already ran
 app.use((err, _req, res, _next) => {
   console.error(err)
-  const status = err.status || 500
-  res.status(status).json({ error: err.message || 'Internal server error' })
+  res.status(500).json({ error: err.message || 'Internal server error' })
 })
 
-app.listen(PORT, () => console.log(`Emotional Trigger API running on port ${PORT}`))
+app.listen(PORT, () => {
+  console.log(`Emotional Trigger API running on port ${PORT}`)
+})
 
 export default app

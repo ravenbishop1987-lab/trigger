@@ -1,0 +1,39 @@
+services:
+  - type: web
+    name: triggeriq-api
+    runtime: node
+    plan: starter
+    region: oregon
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: DATABASE_URL
+        fromDatabase:
+          name: triggeriq-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: STRIPE_PRO_PRICE_ID
+        sync: false
+      - key: STRIPE_EXECUTIVE_PRICE_ID
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+
+databases:
+  - name: triggeriq-db
+    databaseName: triggeriq
+    user: triggeriq
+    plan: starter

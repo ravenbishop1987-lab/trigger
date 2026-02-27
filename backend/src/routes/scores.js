@@ -23,10 +23,11 @@ router.get('/', async (req, res) => {
 
     res.json(result.rows[0] || { score: 0, volatility: 0 })
   } catch (err) {
-    console.error(err)
+    console.error('Score route error:', err)
     res.status(500).json({ error: 'Failed to fetch score' })
   }
 })
+
 
 // ─────────────────────────
 // SCORE HISTORY
@@ -34,14 +35,14 @@ router.get('/', async (req, res) => {
 router.get('/history', async (req, res) => {
   try {
     const userId = req.user.id
-    const months = parseInt(req.query.months) || 6
+    const months = parseInt(req.query.months, 10) || 6
 
     const result = await query(
       `
       SELECT score, volatility, created_at
       FROM scores
       WHERE user_id = $1
-        AND created_at >= NOW() - ($2 || ' months')::interval
+        AND created_at >= NOW() - ($2 * INTERVAL '1 month')
       ORDER BY created_at ASC
       `,
       [userId, months]
@@ -49,10 +50,11 @@ router.get('/history', async (req, res) => {
 
     res.json(result.rows)
   } catch (err) {
-    console.error(err)
+    console.error('History route error:', err)
     res.status(500).json({ error: 'Failed to fetch history' })
   }
 })
+
 
 // ─────────────────────────
 // HEATMAP
@@ -60,15 +62,16 @@ router.get('/history', async (req, res) => {
 router.get('/heatmap', async (req, res) => {
   try {
     const userId = req.user.id
-    const days = parseInt(req.query.days) || 30
+    const days = parseInt(req.query.days, 10) || 30
 
     const result = await query(
       `
-      SELECT DATE(created_at) as date,
-             AVG(score) as avg_score
+      SELECT 
+        DATE(created_at) AS date,
+        AVG(score)::float AS avg_score
       FROM scores
       WHERE user_id = $1
-        AND created_at >= NOW() - ($2 || ' days')::interval
+        AND created_at >= NOW() - ($2 * INTERVAL '1 day')
       GROUP BY DATE(created_at)
       ORDER BY DATE(created_at)
       `,
@@ -77,7 +80,7 @@ router.get('/heatmap', async (req, res) => {
 
     res.json(result.rows)
   } catch (err) {
-    console.error(err)
+    console.error('Heatmap route error:', err)
     res.status(500).json({ error: 'Failed to fetch heatmap' })
   }
 })

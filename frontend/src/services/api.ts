@@ -1,129 +1,67 @@
-import axios from 'axios'
-import { useAuthStore } from '../store/authStore'
+import axios from 'axios';
+import { useAuthStore } from '../store/authStore';
 
-const API_BASE = 'https://emotional-trigger-saas.onrender.com/api'
-
-const api = axios.create({
-  baseURL: API_BASE,
+export const api = axios.create({
+  baseURL: import.meta.env.VITE_API_URL || '/api',
   timeout: 30000,
-})
-
-/* ======================
-   REQUEST INTERCEPTOR
-====================== */
+});
 
 api.interceptors.request.use((config) => {
-  const token = useAuthStore.getState().token
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`
-  }
-  return config
-})
-
-/* ======================
-   RESPONSE INTERCEPTOR
-====================== */
+  const token = useAuthStore.getState().token;
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});
 
 api.interceptors.response.use(
   (res) => res,
   (err) => {
     if (err.response?.status === 401) {
-      useAuthStore.getState().logout()
-      window.location.href = '/login'
+      useAuthStore.getState().logout();
+      window.location.href = '/login';
     }
-    return Promise.reject(err)
+    return Promise.reject(err);
   }
-)
+);
 
-/* ======================
-   AUTH
-====================== */
-
+// ── API helpers ────────────────────────────────────────────
 export const authApi = {
-  register: (body: any) =>
-    api.post('/auth/register', body).then((r) => r.data),
-
   login: (email: string, password: string) =>
     api.post('/auth/login', { email, password }).then((r) => r.data),
-
-  me: () =>
-    api.get('/auth/me').then((r) => r.data),
-}
-
-/* ======================
-   SCORES
-====================== */
-
-export const scoresApi = {
-  current: () =>
-    api.get('/scores').then((r) => r.data),
-
-  heatmap: (days: number) =>
-    api.get(`/scores/heatmap`, { params: { days } }).then((r) => r.data),
-
-  history: (months: number) =>
-    api.get(`/scores/history`, { params: { months } }).then((r) => r.data),
-}
-
-/* ======================
-   TRIGGERS
-====================== */
+  register: (body: any) => api.post('/auth/register', body).then((r) => r.data),
+  me: () => api.get('/auth/me').then((r) => r.data),
+};
 
 export const triggersApi = {
-  // Backend returns { data: [...], meta: {...} }
-  list: (params?: { limit?: number }) =>
-    api.get('/triggers', { params }).then((r) => r.data),
+  list: (params?: any) => api.get('/triggers', { params }).then((r) => r.data),
+  get: (id: string) => api.get(`/triggers/${id}`).then((r) => r.data),
+  create: (body: any) => api.post('/triggers', body).then((r) => r.data),
+  update: (id: string, body: any) => api.patch(`/triggers/${id}`, body).then((r) => r.data),
+  delete: (id: string) => api.delete(`/triggers/${id}`).then((r) => r.data),
+  getRegulation: (id: string) => api.post(`/triggers/${id}/regulation`).then((r) => r.data),
+};
 
-  create: (body: any) =>
-    api.post('/triggers', body).then((r) => r.data),
-
-  update: (id: string, body: any) =>
-    api.put(`/triggers/${id}`, body).then((r) => r.data),
-
-  delete: (id: string) =>
-    api.delete(`/triggers/${id}`).then((r) => r.data),
-}
-
-/* ======================
-   PATTERNS
-====================== */
+export const scoresApi = {
+  current: () => api.get('/scores/current').then((r) => r.data),
+  history: (weeks?: number) => api.get('/scores/history', { params: { weeks } }).then((r) => r.data),
+  heatmap: (days?: number) => api.get('/scores/heatmap', { params: { days } }).then((r) => r.data),
+  compute: (body?: any) => api.post('/scores/compute', body).then((r) => r.data),
+};
 
 export const patternsApi = {
-  getAll: () =>
-    api.get('/patterns').then((r) => r.data),
-}
-
-/* ======================
-   SUMMARIES
-====================== */
+  list: () => api.get('/patterns').then((r) => r.data),
+  cluster: (days?: number) => api.post('/patterns/cluster', { days }).then((r) => r.data),
+  escalation: () => api.get('/patterns/escalation').then((r) => r.data),
+  trends: (days?: number) => api.get('/patterns/trends', { params: { days } }).then((r) => r.data),
+};
 
 export const summariesApi = {
-  get: () =>
-    api.get('/summaries').then((r) => r.data),
-}
-
-/* ======================
-   SUBSCRIPTIONS
-====================== */
+  list: () => api.get('/summaries').then((r) => r.data),
+  generate: (week_offset?: number) =>
+    api.post('/summaries/generate', { week_offset }).then((r) => r.data),
+};
 
 export const subscriptionsApi = {
-  // Used by SettingsPage: checkoutMut.mutate(plan.tier)
-  checkout: (tier: string) =>
-    api.post('/subscriptions/checkout', { tier }).then((r) => r.data),
-
-  // Used by SettingsPage: portalMut.mutate()
-  portal: () =>
-    api.post('/subscriptions/portal').then((r) => r.data),
-
-  getStatus: () =>
-    api.get('/subscriptions/status').then((r) => r.data),
-}
-
-/* ======================
-   RELATIONSHIPS
-====================== */
-
-export const relationshipsApi = {
-  get: () =>
-    api.get('/relationships').then((r) => r.data),
-}
+  status: () => api.get('/subscriptions/status').then((r) => r.data),
+  checkout: (tier: string) => api.post('/subscriptions/checkout', { tier }).then((r) => r.data),
+  portal: () => api.post('/subscriptions/portal').then((r) => r.data),
+};

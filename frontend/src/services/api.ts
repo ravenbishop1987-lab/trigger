@@ -1,11 +1,6 @@
 import axios from 'axios'
 import { useAuthStore } from '../store/authStore'
 
-/*
-  Hard production base URL
-  No env dependency.
-*/
-
 const API_BASE = 'https://emotional-trigger-saas.onrender.com/api'
 
 const api = axios.create({
@@ -13,7 +8,6 @@ const api = axios.create({
   timeout: 30000,
 })
 
-// Attach JWT token
 api.interceptors.request.use((config) => {
   const token = useAuthStore.getState().token
   if (token) {
@@ -22,7 +16,6 @@ api.interceptors.request.use((config) => {
   return config
 })
 
-// Handle expired token
 api.interceptors.response.use(
   (res) => res,
   (err) => {
@@ -83,6 +76,18 @@ export const patternsApi = {
 export const summariesApi = {
   get: () =>
     api.get('/summaries').then((r) => r.data),
+}
+
+/* ======================
+   SUBSCRIPTIONS
+====================== */
+
+export const subscriptionsApi = {
+  createCheckout: (priceId: string) =>
+    api.post('/subscriptions/checkout', { priceId }).then((r) => r.data),
+
+  getStatus: () =>
+    api.get('/subscriptions/status').then((r) => r.data),
 }
 
 /* ======================

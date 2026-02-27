@@ -19,10 +19,13 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (res) => res,
   (err) => {
+    console.error('API Error:', err.response?.data || err.message)
+
     if (err.response?.status === 401) {
       useAuthStore.getState().logout()
       window.location.href = '/login'
     }
+
     return Promise.reject(err)
   }
 )
@@ -58,6 +61,15 @@ export const scoresApi = {
 export const triggersApi = {
   getAll: () =>
     api.get('/triggers').then((r) => r.data),
+
+  create: (body: any) =>
+    api.post('/triggers', body).then((r) => r.data),
+
+  update: (id: string, body: any) =>
+    api.put(`/triggers/${id}`, body).then((r) => r.data),
+
+  delete: (id: string) =>
+    api.delete(`/triggers/${id}`).then((r) => r.data),
 }
 
 /* ======================

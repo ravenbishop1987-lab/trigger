@@ -3,21 +3,71 @@ import express from 'express'
 import cors from 'cors'
 
 import authRoutes from './routes/auth.js'
+import triggersRoutes from './routes/triggers.js'
+import scoresRoutes from './routes/scores.js'
+import patternsRoutes from './routes/patterns.js'
+import summariesRoutes from './routes/summaries.js'
+import subscriptionsRoutes from './routes/subscriptions.js'
+import webhooksRoutes from './routes/webhooks.js'
+import adminRoutes from './routes/admin.js'
+import relationshipsRoutes from './routes/relationships.js'
 
 const app = express()
 const PORT = process.env.PORT || 4000
 
-app.use(cors())
-app.use(express.json())
+// ─────────────────────────────────────────────
+// 🔥 GLOBAL CORS FIX
+// ─────────────────────────────────────────────
 
-app.options('*', cors())
+app.use(cors())
+
+// Force ALL preflight requests to succeed
+app.use((req, res, next) => {
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(204)
+  }
+  next()
+})
+
+// ─────────────────────────────────────────────
+// Body parsing
+// ─────────────────────────────────────────────
+
+app.use(express.json({ limit: '1mb' }))
+
+// ─────────────────────────────────────────────
+// Routes
+// ─────────────────────────────────────────────
 
 app.use('/api/auth', authRoutes)
+app.use('/api/triggers', triggersRoutes)
+app.use('/api/scores', scoresRoutes)
+app.use('/api/patterns', patternsRoutes)
+app.use('/api/summaries', summariesRoutes)
+app.use('/api/subscriptions', subscriptionsRoutes)
+app.use('/api/webhooks', webhooksRoutes)
+app.use('/api/admin', adminRoutes)
+app.use('/api/relationships', relationshipsRoutes)
+
+// ─────────────────────────────────────────────
+// Health check
+// ─────────────────────────────────────────────
 
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok' })
 })
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`)
+// ─────────────────────────────────────────────
+// Error handler
+// ─────────────────────────────────────────────
+
+app.use((err, _req, res, _next) => {
+  console.error(err)
+  res.status(500).json({ error: 'Internal server error' })
 })
+
+app.listen(PORT, () => {
+  console.log(`Emotional Trigger API running on port ${PORT}`)
+})
+
+export default app

@@ -1,77 +1,74 @@
-import 'dotenv/config'
-import express from 'express'
-import cors from 'cors'
+import "dotenv/config"
+import express from "express"
+import cors from "cors"
+import helmet from "helmet"
+import morgan from "morgan"
+import rateLimit from "express-rate-limit"
 
-import authRoutes from './routes/auth.js'
-import triggersRoutes from './routes/triggers.js'
-import scoresRoutes from './routes/scores.js'
-import patternsRoutes from './routes/patterns.js'
-import summariesRoutes from './routes/summaries.js'
-import subscriptionsRoutes from './routes/subscriptions.js'
-import webhooksRoutes from './routes/webhooks.js'
-import adminRoutes from './routes/admin.js'
-import relationshipsRoutes from './routes/relationships.js'
-
-import { authenticate } from './middleware/auth.js'
+import authRoutes from "./routes/auth.js"
+import triggersRoutes from "./routes/triggers.js"
+import scoresRoutes from "./routes/scores.js"
+import patternsRoutes from "./routes/patterns.js"
+import summariesRoutes from "./routes/summaries.js"
+import subscriptionsRoutes from "./routes/subscriptions.js"
+import webhooksRoutes from "./routes/webhooks.js"
+import adminRoutes from "./routes/admin.js"
+import relationshipsRoutes from "./routes/relationships.js"
 
 const app = express()
 const PORT = process.env.PORT || 4000
 
-// ─────────────────────────────────────────────
-// CORS
-// ─────────────────────────────────────────────
+const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173"
 
-app.use(
-  cors({
-    origin: true,
-    credentials: true,
-  })
-)
+app.use(helmet())
+app.use(morgan("combined"))
 
-// ─────────────────────────────────────────────
-// Body parsing
-// ─────────────────────────────────────────────
+const corsOptions = {
+  origin: (origin, cb) => {
+    if (!origin) return cb(null, true)
+    const allowed = [FRONTEND_URL, "http://localhost:5173", "http://127.0.0.1:5173"]
+    if (allowed.includes(origin)) return cb(null, true)
+    return cb(new Error("CORS blocked for origin: " + origin))
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+}
 
-app.use(express.json({ limit: '1mb' }))
+app.use(cors(corsOptions))
+app.options("*", cors(corsOptions))
 
-// ─────────────────────────────────────────────
-// PUBLIC ROUTES
-// ─────────────────────────────────────────────
+app.use("/api/webhooks/stripe", express.raw({ type: "application/json" }))
+app.use(express.json({ limit: "1mb" }))
 
-app.use('/api/auth', authRoutes)
-app.use('/api/webhooks', webhooksRoutes)
-
-// ─────────────────────────────────────────────
-// PROTECTED ROUTES
-// ─────────────────────────────────────────────
-
-app.use('/api/scores', authenticate, scoresRoutes)
-app.use('/api/triggers', authenticate, triggersRoutes)
-app.use('/api/patterns', authenticate, patternsRoutes)
-app.use('/api/summaries', authenticate, summariesRoutes)
-app.use('/api/subscriptions', authenticate, subscriptionsRoutes)
-app.use('/api/admin', authenticate, adminRoutes)
-app.use('/api/relationships', authenticate, relationshipsRoutes)
-
-// ─────────────────────────────────────────────
-// HEALTH CHECK
-// ─────────────────────────────────────────────
-
-app.get('/health', (_req, res) => {
-  res.json({ status: 'ok' })
+const globalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
 })
 
-// ─────────────────────────────────────────────
-// ERROR HANDLER
-// ─────────────────────────────────────────────
+app.use("/api", globalLimiter)
+
+app.get("/", (_req, res) => res.status(200).json({ ok: true }))
+app.get("/health", (_req, res) => res.status(200).json({ status: "ok" }))
+
+app.use("/api/auth", authRoutes)
+app.use("/api/triggers", triggersRoutes)
+app.use("/api/scores", scoresRoutes)
+app.use("/api/patterns", patternsRoutes)
+app.use("/api/summaries", summariesRoutes)
+app.use("/api/subscriptions", subscriptionsRoutes)
+app.use("/api/webhooks", webhooksRoutes)
+app.use("/api/admin", adminRoutes)
+app.use("/api/relationships", relationshipsRoutes)
 
 app.use((err, _req, res, _next) => {
   console.error(err)
-  res.status(500).json({ error: 'Internal server error' })
+  const msg = err?.message || "Internal server error"
+  res.status(500).json({ error: msg })
 })
 
-app.listen(PORT, () => {
-  console.log(`Emotional Trigger API running on port ${PORT}`)
-})
+app.listen(PORT, () => console.log("Emotional Trigger API running on port " + PORT))
 
 export default app

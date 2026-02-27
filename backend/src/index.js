@@ -12,57 +12,56 @@ import webhooksRoutes from './routes/webhooks.js'
 import adminRoutes from './routes/admin.js'
 import relationshipsRoutes from './routes/relationships.js'
 
+import authMiddleware from './middleware/auth.js'
+
 const app = express()
 const PORT = process.env.PORT || 4000
 
-// ─────────────────────────────────────────────
-// 🔥 GLOBAL CORS FIX
-// ─────────────────────────────────────────────
+// ======================
+// CORS
+// ======================
 
-// FORCE CORS + PREFLIGHT FIX
-app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*')
-  res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS')
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization')
-  
-  if (req.method === 'OPTIONS') {
-    return res.sendStatus(200)
-  }
+app.use(cors({
+  origin: true,
+  credentials: true,
+}))
 
-  next()
-})
-
-// ─────────────────────────────────────────────
+// ======================
 // Body parsing
-// ─────────────────────────────────────────────
+// ======================
 
 app.use(express.json({ limit: '1mb' }))
 
-// ─────────────────────────────────────────────
-// Routes
-// ─────────────────────────────────────────────
+// ======================
+// PUBLIC ROUTES
+// ======================
 
 app.use('/api/auth', authRoutes)
-app.use('/api/triggers', triggersRoutes)
-app.use('/api/scores', scoresRoutes)
-app.use('/api/patterns', patternsRoutes)
-app.use('/api/summaries', summariesRoutes)
-app.use('/api/subscriptions', subscriptionsRoutes)
 app.use('/api/webhooks', webhooksRoutes)
-app.use('/api/admin', adminRoutes)
-app.use('/api/relationships', relationshipsRoutes)
 
-// ─────────────────────────────────────────────
-// Health check
-// ─────────────────────────────────────────────
+// ======================
+// PROTECTED ROUTES
+// ======================
+
+app.use('/api/scores', authMiddleware, scoresRoutes)
+app.use('/api/triggers', authMiddleware, triggersRoutes)
+app.use('/api/patterns', authMiddleware, patternsRoutes)
+app.use('/api/summaries', authMiddleware, summariesRoutes)
+app.use('/api/subscriptions', authMiddleware, subscriptionsRoutes)
+app.use('/api/admin', authMiddleware, adminRoutes)
+app.use('/api/relationships', authMiddleware, relationshipsRoutes)
+
+// ======================
+// HEALTH CHECK
+// ======================
 
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok' })
 })
 
-// ─────────────────────────────────────────────
-// Error handler
-// ─────────────────────────────────────────────
+// ======================
+// ERROR HANDLER
+// ======================
 
 app.use((err, _req, res, _next) => {
   console.error(err)

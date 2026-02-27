@@ -47,7 +47,9 @@ router.post('/register', async (req, res, next) => {
     const token = signToken({ sub: user.id, role: user.role });
     res.status(201).json({ user, token });
   } catch (err) {
-    if (err instanceof z.ZodError) return res.status(400).json({ error: err.errors });
+    if (err instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Validation error', details: err.errors });
+    }
     next(err);
   }
 });
@@ -71,22 +73,28 @@ router.post('/login', async (req, res, next) => {
     const token = signToken({ sub: user.id, role: user.role });
     res.json({ user: safeUser, token });
   } catch (err) {
-    if (err instanceof z.ZodError) return res.status(400).json({ error: err.errors });
+    if (err instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Validation error', details: err.errors });
+    }
     next(err);
   }
 });
 
 // GET /api/auth/me
-router.get('/me', authenticate, async (req, res) => {
-  const result = await query(
-    `SELECT u.id, u.email, u.full_name, u.role, u.timezone, u.avatar_url, u.onboarding_complete, u.created_at,
-            s.tier, s.status as subscription_status, s.current_period_end
-     FROM users u
-     LEFT JOIN subscriptions s ON s.user_id = u.id AND s.status IN ('active','trialing')
-     WHERE u.id = $1`,
-    [req.user.id]
-  );
-  res.json(result.rows[0]);
+router.get('/me', authenticate, async (req, res, next) => {
+  try {
+    const result = await query(
+      `SELECT u.id, u.email, u.full_name, u.role, u.timezone, u.avatar_url, u.onboarding_complete, u.created_at,
+              s.tier, s.status as subscription_status, s.current_period_end
+       FROM users u
+       LEFT JOIN subscriptions s ON s.user_id = u.id AND s.status IN ('active','trialing')
+       WHERE u.id = $1`,
+      [req.user.id]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    next(err);
+  }
 });
 
 // POST /api/auth/change-password
@@ -105,7 +113,9 @@ router.post('/change-password', authenticate, async (req, res, next) => {
     await query('UPDATE users SET password_hash = $1 WHERE id = $2', [hash, req.user.id]);
     res.json({ message: 'Password updated successfully' });
   } catch (err) {
-    if (err instanceof z.ZodError) return res.status(400).json({ error: err.errors });
+    if (err instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Validation error', details: err.errors });
+    }
     next(err);
   }
 });

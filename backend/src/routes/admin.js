@@ -1,4 +1,3 @@
-// admin.js
 import { Router } from 'express';
 import { authenticate, requireRole } from '../middleware/auth.js';
 import { query } from '../db/pool.js';
@@ -6,6 +5,7 @@ import { query } from '../db/pool.js';
 const router = Router();
 router.use(authenticate, requireRole('admin'));
 
+// GET /api/admin/users
 router.get('/users', async (req, res, next) => {
   try {
     const result = await query(
@@ -26,6 +26,7 @@ router.get('/users', async (req, res, next) => {
   }
 });
 
+// GET /api/admin/stats
 router.get('/stats', async (_req, res, next) => {
   try {
     const users = await query('SELECT COUNT(*) FROM users');

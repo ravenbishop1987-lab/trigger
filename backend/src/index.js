@@ -12,56 +12,58 @@ import webhooksRoutes from './routes/webhooks.js'
 import adminRoutes from './routes/admin.js'
 import relationshipsRoutes from './routes/relationships.js'
 
-import authMiddleware from './middleware/auth.js'
+import { authenticate } from './middleware/auth.js'
 
 const app = express()
 const PORT = process.env.PORT || 4000
 
-// ======================
+// ─────────────────────────────────────────────
 // CORS
-// ======================
+// ─────────────────────────────────────────────
 
-app.use(cors({
-  origin: true,
-  credentials: true,
-}))
+app.use(
+  cors({
+    origin: true,
+    credentials: true,
+  })
+)
 
-// ======================
+// ─────────────────────────────────────────────
 // Body parsing
-// ======================
+// ─────────────────────────────────────────────
 
 app.use(express.json({ limit: '1mb' }))
 
-// ======================
+// ─────────────────────────────────────────────
 // PUBLIC ROUTES
-// ======================
+// ─────────────────────────────────────────────
 
 app.use('/api/auth', authRoutes)
 app.use('/api/webhooks', webhooksRoutes)
 
-// ======================
+// ─────────────────────────────────────────────
 // PROTECTED ROUTES
-// ======================
+// ─────────────────────────────────────────────
 
-app.use('/api/scores', authMiddleware, scoresRoutes)
-app.use('/api/triggers', authMiddleware, triggersRoutes)
-app.use('/api/patterns', authMiddleware, patternsRoutes)
-app.use('/api/summaries', authMiddleware, summariesRoutes)
-app.use('/api/subscriptions', authMiddleware, subscriptionsRoutes)
-app.use('/api/admin', authMiddleware, adminRoutes)
-app.use('/api/relationships', authMiddleware, relationshipsRoutes)
+app.use('/api/scores', authenticate, scoresRoutes)
+app.use('/api/triggers', authenticate, triggersRoutes)
+app.use('/api/patterns', authenticate, patternsRoutes)
+app.use('/api/summaries', authenticate, summariesRoutes)
+app.use('/api/subscriptions', authenticate, subscriptionsRoutes)
+app.use('/api/admin', authenticate, adminRoutes)
+app.use('/api/relationships', authenticate, relationshipsRoutes)
 
-// ======================
+// ─────────────────────────────────────────────
 // HEALTH CHECK
-// ======================
+// ─────────────────────────────────────────────
 
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok' })
 })
 
-// ======================
+// ─────────────────────────────────────────────
 // ERROR HANDLER
-// ======================
+// ─────────────────────────────────────────────
 
 app.use((err, _req, res, _next) => {
   console.error(err)

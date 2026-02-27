@@ -1,83 +1,32 @@
-import express from 'express'
-import { Pool } from 'pg'
+import { Router } from 'express'
+import { query } from '../db/pool.js'
+import { authenticate } from '../middleware/auth.js'
 
-const router = express.Router()
+const router = Router()
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production'
-    ? { rejectUnauthorized: false }
-    : false,
-})
+router.get('/', authenticate, async (req, res) => {
+  const result = await query(
+    `
+    SELECT *
+    FROM emotion_scores
+    WHERE user_id = $1
+    ORDER BY period_end DESC
+    LIMIT 1
+    `,
+    [req.user.id]
+  )
 
-// ==============================
-// CURRENT SCORE
-// ==============================
-
-router.get('/', async (req, res) => {
-  try {
-    const userId = req.user?.sub
-
-    if (!userId) {
-      return res.status(401).json({ error: 'Unauthorized' })
-    }
-
-    const result = await pool.query(
-      `
-      SELECT score, volatility, created_at
-      FROM scores
-      WHERE user_id = $1
-      ORDER BY created_at DESC
-      LIMIT 1
-      `,
-      [userId]
-    )
-
-    if (result.rows.length === 0) {
-      return res.json({
-        score: 0,
-        volatility: 0,
-        created_at: null,
-      })
-    }
-
-    res.json(result.rows[0])
-  } catch (err) {
-    console.error(err)
-    res.status(500).json({ error: 'Failed to fetch score' })
+  if (result.rows.length === 0) {
+    return res.json({
+      composite_score: 0,
+      stability_score: 0,
+      reactivity_index: 0,
+      trigger_density_score: 0,
+      recovery_speed_score: 0,
+    })
   }
-})
 
-// ==============================
-// SCORE HISTORY
-// ==============================
-
-router.get('/history', async (req, res) => {
-  try {
-    const userId = req.user?.sub
-
-    if (!userId) {
-      return res.status(401).json({ error: 'Unauthorized' })
-    }
-
-    const months = parseInt(req.query.months) || 6
-
-    const result = await pool.query(
-      `
-      SELECT score, volatility, created_at
-      FROM scores
-      WHERE user_id = $1
-        AND created_at >= NOW() - INTERVAL '${months} months'
-      ORDER BY created_at ASC
-      `,
-      [userId]
-    )
-
-    res.json(result.rows)
-  } catch (err) {
-    console.error(err)
-    res.status(500).json({ error: 'Failed to fetch score history' })
-  }
+  res.json(result.rows[0])
 })
 
 export default router

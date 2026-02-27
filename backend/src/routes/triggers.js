@@ -1,137 +1,146 @@
-import { Router } from "express"
-import { authenticate } from "../middleware/auth.js"
-import { query } from "../db/pool.js"
+import { Router } from 'express'
+import { z } from 'zod'
+import { query } from '../db/pool.js'
+import { authenticate } from '../middleware/auth.js'
 
 const router = Router()
 
-router.use(authenticate)
+const triggerCreateSchema = z.object({
+  title: z.string().min(1).max(500),
+  description: z.string().optional().nullable(),
+  emotion_category: z.string().optional().default('other'),
+  intensity: z.number().int().min(1).max(10),
+  body_sensation: z.string().optional().nullable(),
+  context_tags: z.array(z.string()).optional().default([]),
+  location: z.string().optional().nullable(),
+  people_involved: z.array(z.string()).optional().default([]),
+  thought_pattern: z.string().optional().nullable(),
+  regulation_used: z.string().optional().nullable(),
+  recovery_minutes: z.number().int().optional().nullable(),
+  occurred_at: z.string().optional(),
+})
 
-router.get("/", async (req, res, next) => {
+const triggerUpdateSchema = triggerCreateSchema.partial()
+
+// GET /api/triggers?limit=30
+router.get('/', authenticate, async (req, res, next) => {
   try {
-    const limit = Math.min(Number(req.query.limit || 50), 200)
-    const offset = Math.max(Number(req.query.offset || 0), 0)
+    const limit = Math.max(1, Math.min(Number(req.query.limit || 30), 200))
 
     const result = await query(
       `SELECT *
        FROM triggers
        WHERE user_id = $1
        ORDER BY occurred_at DESC
-       LIMIT $2 OFFSET $3`,
-      [req.user.id, limit, offset]
+       LIMIT $2`,
+      [req.user.id, limit]
     )
 
-    res.json({ data: result.rows })
+    res.json({ data: result.rows, total: result.rows.length })
   } catch (err) {
     next(err)
   }
 })
 
-router.post("/", async (req, res, next) => {
+// GET /api/triggers/:id
+router.get('/:id', authenticate, async (req, res, next) => {
   try {
-    const {
-      title,
-      description,
-      emotion_category = "other",
-      intensity = 5,
-      body_sensation = null,
-      context_tags = [],
-      location = null,
-      people_involved = [],
-      thought_pattern = null,
-      regulation_used = null,
-      recovery_minutes = null,
-      occurred_at = null,
-    } = req.body || {}
+    const result = await query(
+      `SELECT *
+       FROM triggers
+       WHERE id = $1 AND user_id = $2
+       LIMIT 1`,
+      [req.params.id, req.user.id]
+    )
 
-    if (!title || String(title).trim().length === 0) {
-      return res.status(400).json({ error: "title is required" })
-    }
+    if (!result.rows[0]) return res.status(404).json({ error: 'Not found' })
+    res.json(result.rows[0])
+  } catch (err) {
+    next(err)
+  }
+})
+
+// POST /api/triggers
+router.post('/', authenticate, async (req, res, next) => {
+  try {
+    const body = triggerCreateSchema.parse(req.body)
+
+    const occurredAt = body.occurred_at ? new Date(body.occurred_at) : new Date()
 
     const result = await query(
       `INSERT INTO triggers
-       (user_id, title, description, emotion_category, intensity, body_sensation, context_tags, location,
-        people_involved, thought_pattern, regulation_used, recovery_minutes, occurred_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12, COALESCE($13, NOW()))
+        (user_id, title, description, emotion_category, intensity, body_sensation, context_tags, location, people_involved,
+         thought_pattern, regulation_used, recovery_minutes, occurred_at)
+       VALUES
+        ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
        RETURNING *`,
       [
         req.user.id,
-        title,
-        description,
-        emotion_category,
-        intensity,
-        body_sensation,
-        context_tags,
-        location,
-        people_involved,
-        thought_pattern,
-        regulation_used,
-        recovery_minutes,
-        occurred_at,
+        body.title,
+        body.description || null,
+        body.emotion_category || 'other',
+        body.intensity,
+        body.body_sensation || null,
+        body.context_tags || [],
+        body.location || null,
+        body.people_involved || [],
+        body.thought_pattern || null,
+        body.regulation_used || null,
+        body.recovery_minutes ?? null,
+        occurredAt,
       ]
     )
 
     res.status(201).json(result.rows[0])
   } catch (err) {
+    if (err instanceof z.ZodError) return res.status(400).json({ error: err.errors })
     next(err)
   }
 })
 
-router.get("/:id", async (req, res, next) => {
+// PATCH /api/triggers/:id
+router.patch('/:id', authenticate, async (req, res, next) => {
   try {
-    const result = await query(
-      `SELECT *
-       FROM triggers
-       WHERE id = $1 AND user_id = $2`,
+    const body = triggerUpdateSchema.parse(req.body)
+
+    const existing = await query(
+      `SELECT id FROM triggers WHERE id = $1 AND user_id = $2 LIMIT 1`,
       [req.params.id, req.user.id]
     )
-    if (!result.rows[0]) return res.status(404).json({ error: "Not found" })
-    res.json(result.rows[0])
-  } catch (err) {
-    next(err)
-  }
-})
+    if (!existing.rows[0]) return res.status(404).json({ error: 'Not found' })
 
-router.patch("/:id", async (req, res, next) => {
-  try {
-    const fields = req.body || {}
-    const allowed = [
-      "title",
-      "description",
-      "emotion_category",
-      "intensity",
-      "body_sensation",
-      "context_tags",
-      "location",
-      "people_involved",
-      "thought_pattern",
-      "regulation_used",
-      "recovery_minutes",
-      "occurred_at",
-      "cluster_id",
-    ]
+    const fields = []
+    const values = []
+    let i = 1
 
-    const keys = Object.keys(fields).filter((k) => allowed.includes(k))
-    if (keys.length === 0) return res.status(400).json({ error: "No valid fields to update" })
+    for (const [k, v] of Object.entries(body)) {
+      fields.push(`${k} = $${i}`)
+      values.push(v)
+      i += 1
+    }
 
-    const setSql = keys.map((k, i) => `${k} = $${i + 3}`).join(", ")
-    const params = [req.params.id, req.user.id, ...keys.map((k) => fields[k])]
+    if (fields.length === 0) return res.json({ ok: true })
+
+    values.push(req.params.id)
+    values.push(req.user.id)
 
     const result = await query(
       `UPDATE triggers
-       SET ${setSql}, updated_at = NOW()
-       WHERE id = $1 AND user_id = $2
+       SET ${fields.join(', ')}, updated_at = NOW()
+       WHERE id = $${i} AND user_id = $${i + 1}
        RETURNING *`,
-      params
+      values
     )
 
-    if (!result.rows[0]) return res.status(404).json({ error: "Not found" })
     res.json(result.rows[0])
   } catch (err) {
+    if (err instanceof z.ZodError) return res.status(400).json({ error: err.errors })
     next(err)
   }
 })
 
-router.delete("/:id", async (req, res, next) => {
+// DELETE /api/triggers/:id
+router.delete('/:id', authenticate, async (req, res, next) => {
   try {
     const result = await query(
       `DELETE FROM triggers
@@ -140,7 +149,7 @@ router.delete("/:id", async (req, res, next) => {
       [req.params.id, req.user.id]
     )
 
-    if (!result.rows[0]) return res.status(404).json({ error: "Not found" })
+    if (!result.rows[0]) return res.status(404).json({ error: 'Not found' })
     res.json({ ok: true })
   } catch (err) {
     next(err)
